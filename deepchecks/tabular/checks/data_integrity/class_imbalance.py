@@ -13,12 +13,12 @@
 from typing import List, Union
 
 import pandas as pd
-import numpy as np
 import plotly.express as px
 
 from deepchecks.core import CheckResult, ConditionCategory, ConditionResult
 from deepchecks.core.errors import DatasetValidationError
 from deepchecks.tabular import Context, SingleDatasetCheck
+from deepchecks.tabular.dataset import _get_dataset_docs_tag
 from deepchecks.utils.dataframes import select_from_dataframe
 from deepchecks.utils.strings import format_list, format_percent
 from deepchecks.utils.typing import Hashable
@@ -61,7 +61,6 @@ class ClassImbalance(SingleDatasetCheck):
 
         Returns
             value is the ratio that 
-            result indicates whether the ratio is less than the threshold
             data is a bar graph that displays the frequency of each class
         -------
         CheckResult
@@ -72,10 +71,11 @@ class ClassImbalance(SingleDatasetCheck):
         dataset = context.get_data_by_kind(dataset_kind).data
         dataset = select_from_dataframe(dataset, self.columns, self.ignore_columns)
 
-        n_samples = dataset.shape[0]
-
-        if n_samples == 0:
-            raise DatasetValidationError('Dataset does not contain any data')
+        if len(dataset.columns) == 1:
+            raise DatasetValidationError(
+                'Dataset does not contain an index or a datetime',
+                html=f'Dataset does not contain an index or a datetime. see {_get_dataset_docs_tag()}'
+            )
 
         label_name = dataset.label_name
 
@@ -126,14 +126,17 @@ class ClassImbalance(SingleDatasetCheck):
        
 
 
-    def add_condition_ratio_less_than(self):
+    def add_condition_ratio_less_than(self, threshold):
         """Add condition - require class imbalance ratio to be less than to the threshold.
-
+         Parameters
+        ----------
+        threshold : int , default: None
+            Delegates the ratio threshold that the class_imbalance ratio should surpass 
         """
         def max_ratio_condition(result: float) -> ConditionResult:
             details = f'Found the class ratio to be {result}'
-            category = ConditionCategory.PASS if result < self.threshold else ConditionCategory.WARN
+            category = ConditionCategory.PASS if result < threshold else ConditionCategory.WARN
             return ConditionResult(category, details)
 
-        return self.add_condition(f'Class Imbalance ratio is less than {format_percent(self.threshold)}',
+        return self.add_condition(f'Class Imbalance ratio is less than {format_percent(threshold)}',
                                   max_ratio_condition)
